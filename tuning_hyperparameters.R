@@ -86,9 +86,40 @@ tree_res %>%
 
 tree_res %>% show_best(n = 10) # 10 best performing models
 
-tree_res %>% select_best("accuracy") # model with best accuracy
+best_tree <- tree_res %>% select_best("roc_auc") # model with best accuracy
 
 ## These are the values for tree_depth and cost_complexity that
 ## maximize accuracy in this data set of cell images.
 
+# finalize the model
+final_wf <-
+  tree_wf %>%
+  finalize_workflow(best_tree)
 
+final_wf
+
+# one last fit!
+final_fit <-
+  final_wf %>%
+  last_fit(cell_split)
+
+final_fit %>%
+  collect_metrics()
+
+
+final_fit %>%
+  collect_predictions() %>%
+  roc_curve(class, .pred_PS) %>%
+  autoplot()
+
+final_tree <- extract_workflow(final_fit)
+
+# extract the final underlying decision tree
+final_tree %>%
+  extract_fit_engine() %>%
+  rpart.plot(roundint = FALSE)
+
+# determine what variables are most important in our model
+final_tree %>%
+  extract_fit_parsnip() %>%
+  vip()
