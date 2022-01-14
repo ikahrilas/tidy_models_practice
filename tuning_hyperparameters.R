@@ -31,4 +31,15 @@ tune_spec <-
   set_engine("rpart") %>%
   set_mode("classification")
 
-tune_spec
+# define a grid of hyperparameters
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          levels = 5)
+
+# `tree_grid` is a 2x25 tibble holding hyperparameter values to be used in the models
+tree_grid
+
+## The function grid_regular() is from the dials package. It chooses sensible values to try
+## for each hyperparameter; here, we asked for 5 of each. Since we have two to tune, grid_regular()
+## returns 5 × 5 = 25 different possible tuning combinations to try in a tidy tibble format
+
