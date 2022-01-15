@@ -176,3 +176,78 @@ rf_res <-
             grid = 25,
             control = control_grid(save_pred = TRUE),
             metrics = metric_set(roc_auc))
+
+# look at the 5 best models
+rf_res %>%
+  show_best("roc_auc", n = 5)
+
+## this is looking much more promising that the logistic regression model
+autoplot(rf_res)
+
+# Plotting the results of the tuning process highlights that both mtry number of
+# predictors at each node) and min_n (minimum number of data points required to
+# keep splitting) should be fairly small to optimize performance. However, the
+# range of the y-axis indicates that the model is very robust to the choice of
+# these parameter values — all but one of the ROC AUC values are greater than 0.90.
+
+rf_best <-
+  rf_res %>%
+  select_best(metric = "roc_auc")
+
+rf_best # mtry = 8 and min_n = 3
+
+rf_auc <- rf_res %>%
+  collect_predictions(parameters = rf_best) %>%
+  roc_curve(children, .pred_children) %>%
+  mutate(model = "Random Forest")
+
+# compared curves between randforest model and lr
+bind_rows(rf_auc, lr_auc) %>%
+  ggplot(aes(x = 1 - specificity, y = sensitivity, col = model)) +
+  geom_line(lwd = 1.5, alpha = 0.8) +
+  geom_abline(lty = 3) +
+  coord_equal() +
+  scale_color_viridis_d(option = "plasma", end = .6)
+
+# now, refit final model
+last_rf_mod <-
+  rand_forest(mtry = 8, min_n = 3, trees = 1000) %>%
+  set_engine("ranger", num.threads = 1, importance = "impurity") %>% # importance arg to extract variable importance
+  set_mode("classification")
+
+last_rf_wf <-
+  rf_workflow %>%
+  update_model(last_rf_mod)
+
+# the last fit
+set.seed(234)
+last_rf_fit <-
+  last_rf_wf %>%
+  last_fit(hotel_split)
+
+last_rf_fit
+
+# inspect the final metrics
+last_rf_fit %>%
+  collect_metrics()
+
+# look at most important variables
+last_rf_fit %>%
+  pluck(".workflow", 1) %>%
+  extract_fit_parsnip() %>%
+  vip(num_featers = 20)
+
+# The most important predictors in whether a hotel stay
+# had children or not were the daily cost for the room, the
+# type of room reserved, the type of room that was ultimately
+# assigned, and the time between the creation of the reservation
+# and the arrival date.
+
+# look at roc curve
+last_rf_fit %>%
+  collect_predictions() %>%
+  roc_curve(children, .pred_children) %>%
+  autoplot()
+
+# in light of these findings, we have good confidene that this model with these hyperparameters
+# would do a good job predicting new data
